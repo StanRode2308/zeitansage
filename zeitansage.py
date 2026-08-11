@@ -30,15 +30,15 @@ if not isTime:
     sys.exit()
 
 if now.minute == 00 and now.hour != 0:
-    TEXT = now.strftime("Es ist jetzt %H Uhr.")
+    TEXT = now.strftime("Es ist %H Uhr.")
 elif now.hour == 0 and now.minute == 00:
     TEXT = "Es ist jetzt 24 Uhr."
 else:
-    TEXT = now.strftime("Es ist jetzt %H Uhr %M.")
+    TEXT = now.strftime("Es ist %H Uhr %M.")
 VOICE = "de-DE-KatjaNeural"
 
 async def generate_speech():
-    communicate = edge_tts.Communicate(text=TEXT, voice=VOICE, pitch="+5Hz", rate="-6%", volume="-70%")
+    communicate = edge_tts.Communicate(text=TEXT, voice=VOICE, pitch="+5Hz", rate="-6%", volume="-60%")
     await communicate.save(ANSAGE_FILE)
 
 try:
