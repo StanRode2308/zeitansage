@@ -70,7 +70,7 @@ def speak(text):
 
 def say_time(icon, item):
     """Ansage der aktuellen Zeit"""
-   threading.Thread(
+    threading.Thread(
        target=ansage_ausfuehren, kwargs={"force": True}, daemon=True
    ).start()
 
