@@ -1,3 +1,5 @@
+# System tray script for SoocerWorld Leipzig
+# Developed by Stan Rode
 import os
 import threading
 import tkinter as tk
@@ -26,6 +28,7 @@ image = (
 )
 
 def speak(text):
+    """Spielt den angegebenen Text mit einem Gong davor ab"""
     voice = "de-DE-KatjaNeural"
     async def generate_speech():
         communicate = edge_tts.Communicate(
@@ -66,11 +69,13 @@ def speak(text):
                 pass
 
 def say_time(icon, item):
+    """Ansage der aktuellen Zeit"""
    threading.Thread(
        target=ansage_ausfuehren, kwargs={"force": True}, daemon=True
    ).start()
 
 def leave_court(icon, item):
+    """Ansage zum Verlassen des Feldes. Mittels item wird die Feld Nummer übergeben"""
     if str(item) == "Pepsi":
         threading.Thread(
             target=speak, args={"Bitte das kleine Feld verlassen!"}, daemon=True
@@ -84,6 +89,7 @@ def beenden(icon, item):
     icon.stop()
 
 def custom_text(icon, item):
+    """Ansage einen individuellen Textes, welcher vorher abgefragt wird"""
     def open_dialog():
         root = tk.Tk()
         root.withdraw()
@@ -103,6 +109,7 @@ def custom_text(icon, item):
     threading.Thread(target=open_dialog, daemon=True).start()
 
 def ballplaying(icon, item):
+    """Ansage zum Ballspielverbot außerhalb der Felder"""
     speak("Achtung! Das Ballspielen ist nur auf den dafür vorgesehenen Plätzen erlaubt!")
 
 
