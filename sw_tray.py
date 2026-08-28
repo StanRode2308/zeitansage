@@ -19,7 +19,7 @@ SKRIPT_ORDNER = os.path.dirname(os.path.abspath(__file__))
 IMAGE_PATH = os.path.join(SKRIPT_ORDNER, "sw_logo.png")
 ANSAGE_FILE = os.path.join(SKRIPT_ORDNER, "ansage_tray.mp3")
 LOG_FILE = os.path.join(SKRIPT_ORDNER, "error_tray.log")
-GONG_FILE = os.path.join(SKRIPT_ORDNER, "gong_sw.mp3")
+GONG_FILE = os.path.join(SKRIPT_ORDNER, "gong_sw_tray.mp3")
 
 image = (
     PIL.Image.open(IMAGE_PATH)
@@ -110,7 +110,7 @@ def custom_text(icon, item):
 
 def ballplaying(icon, item):
     """Ansage zum Ballspielverbot außerhalb der Felder"""
-    speak("Achtung! Das Ballspielen ist nur auf den dafür vorgesehenen Plätzen erlaubt!")
+    speak("Achtung! Das Ballspielen ist nur auf unseren Spielfeldern erlaubt!")
 
 
 icon = pystray.Icon(
