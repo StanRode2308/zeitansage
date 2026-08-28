@@ -11,8 +11,8 @@ import edge_tts
 import sys
 import traceback
 import pygame
-
 import zeitansage
+from deep_translator import MyMemoryTranslator
 from zeitansage import ansage_ausfuehren
 
 SKRIPT_ORDNER = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +30,9 @@ image = (
 def speak(text):
     """Spielt den angegebenen Text mit einem Gong davor ab"""
     voice = "de-DE-KatjaNeural"
-    async def generate_speech():
+    async def generate_speech(text):
+        translator = MyMemoryTranslator(source="de-DE", target="en-US")
+        text = text + " " + translator.translate(text)
         communicate = edge_tts.Communicate(
             text=text, voice=voice, pitch="+5Hz", rate="-6%", volume="-60%"
         )
@@ -41,7 +43,7 @@ def speak(text):
             asyncio.set_event_loop_policy(
                 asyncio.WindowsSelectorEventLoopPolicy()
             )
-        asyncio.run(generate_speech())
+        asyncio.run(generate_speech(text))
     except Exception:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(f"Fehler bei TTS: \n{traceback.format_exc()}\n")
