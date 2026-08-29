@@ -7,19 +7,27 @@ from tkinter import simpledialog
 import PIL.Image
 import pystray
 import asyncio
+
+from Xlib.protocol.rq import Bool
+
 import edge_tts
+import datetime
+import time
 import sys
 import traceback
 import pygame
-import zeitansage
 from deep_translator import MyMemoryTranslator
-from zeitansage import ansage_ausfuehren
+from enum import Enum
 
 SKRIPT_ORDNER = os.path.dirname(os.path.abspath(__file__))
 IMAGE_PATH = os.path.join(SKRIPT_ORDNER, "sw_logo.png")
 ANSAGE_FILE = os.path.join(SKRIPT_ORDNER, "ansage_tray.mp3")
 LOG_FILE = os.path.join(SKRIPT_ORDNER, "error_tray.log")
-GONG_FILE = os.path.join(SKRIPT_ORDNER, "gong_sw_tray.mp3")
+letzte_ansage_minute = -1
+
+class Gong(Enum):
+    NORMAL = os.path.join(SKRIPT_ORDNER, "gong_sw_tray.mp3")
+    TIME = os.path.join(SKRIPT_ORDNER, "gong_sw.mp3")
 
 image = (
     PIL.Image.open(IMAGE_PATH)
@@ -27,14 +35,15 @@ image = (
     .resize((64, 64), PIL.Image.Resampling.LANCZOS)
 )
 
-def speak(text):
+def speak(text, volume, gong: Gong, translation: bool = True):
     """Spielt den angegebenen Text mit einem Gong davor ab"""
     voice = "de-DE-KatjaNeural"
     async def generate_speech(text):
-        translator = MyMemoryTranslator(source="de-DE", target="en-US")
-        text = text + " " + translator.translate(text)
+        if translation:
+            translator = MyMemoryTranslator(source="de-DE", target="en-US")
+            text = text + " " + translator.translate(text)
         communicate = edge_tts.Communicate(
-            text=text, voice=voice, pitch="+5Hz", rate="-6%", volume="-60%"
+            text=text, voice=voice, pitch="+5Hz", rate="-6%", volume=volume
         )
         await communicate.save(ANSAGE_FILE)
 
@@ -52,11 +61,11 @@ def speak(text):
     try:
         pygame.mixer.init()
 
-        if os.path.exists(GONG_FILE):
-            zeitansage.play_audio(GONG_FILE)
+        if os.path.exists(gong.value):
+            play_audio(gong.value)
 
         if os.path.exists(ANSAGE_FILE):
-            zeitansage.play_audio(ANSAGE_FILE)
+            play_audio(ANSAGE_FILE)
 
         pygame.mixer.quit()
     except Exception:
@@ -79,13 +88,9 @@ def say_time(icon, item):
 def leave_court(icon, item):
     """Ansage zum Verlassen des Feldes. Mittels item wird die Feld Nummer übergeben"""
     if str(item) == "Pepsi":
-        threading.Thread(
-            target=speak, args={"Bitte das kleine Feld verlassen!"}, daemon=True
-        ).start()
+        speak("Bitte das kleine Feld verlassen!", "-40%", Gong.NORMAL)
     else:
-        threading.Thread(
-            target=speak, args={f"Bitte Feld {item} verlassen!"}, daemon=True
-        ).start()
+        speak(f"Bitte Feld {item} verlassen!", "-40%", Gong.NORMAL)
 
 def beenden(icon, item):
     icon.stop()
@@ -106,15 +111,73 @@ def custom_text(icon, item):
         root.destroy()
 
         if user_input:
-            speak(user_input)
+            speak(user_input, "-40%", Gong.NORMAL)
 
     threading.Thread(target=open_dialog, daemon=True).start()
 
 def ballplaying(icon, item):
     """Ansage zum Ballspielverbot außerhalb der Felder"""
-    speak("Achtung! Das Ballspielen ist nur auf unseren Spielfeldern erlaubt!")
+    speak("Achtung! Das Ballspielen ist nur auf unseren Spielfeldern erlaubt!", "-40%", Gong.NORMAL)
+
+def automatic_time():
+    """Startet die Schleife zum automatischen Ausführen aller halben Stunde"""
+    while True:
+        global letzte_ansage_minute
+        while True:
+            jetzt = datetime.datetime.now()
+
+            if jetzt.minute in (0, 30) and jetzt.minute != letzte_ansage_minute:
+                ansage_ausfuehren(force=True)
+                letzte_ansage_minute = jetzt.minute
+
+            if jetzt.minute not in (0, 30):
+                letzte_ansage_minute = -1
+
+            time.sleep(5)
 
 
+def ist_im_zeitfenster(jetzt: datetime.datetime) -> bool:
+    """Prüft, ob der Zeitpunkt im erlaubten Zeitfenster liegt."""
+    weekday = jetzt.weekday()
+    hour = jetzt.hour
+
+    if 0 <= weekday <= 4:
+        # Mo - Fr: 10:00 bis 00:00 Uhr
+        if 1 <= hour <= 9:
+            return False
+    else:
+        # Sa - So: 10:00 bis 21:00 Uhr
+        if 0 <= hour <= 9 or 22 <= hour <= 23:
+            return False
+    return True
+
+
+def play_audio(file_path: str):
+    """Spielt eine einzelne Audiodatei über Pygame ab."""
+    if not os.path.exists(file_path):
+        return
+    pygame.mixer.music.load(file_path)
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy():
+        pygame.time.Clock().tick(10)
+
+
+def ansage_ausfuehren(force: bool = False):
+    """Erzeugt und spielt die Zeitansage ab."""
+    now = datetime.datetime.now()
+
+    if not force and not ist_im_zeitfenster(now):
+        return
+
+    if now.minute == 0 and now.hour != 0:
+        text = now.strftime("Es ist %H Uhr.")
+    elif now.hour == 0 and now.minute == 0:
+        text = "Es ist jetzt 24 Uhr."
+    else:
+        text = now.strftime("Es ist %H Uhr %M.")
+    speak(text, "-60%", Gong.TIME, False)
+
+#--------------------------------------------------------------------------------------------------------#
 icon = pystray.Icon(
     "SoccerWorld",
     image,
@@ -141,4 +204,5 @@ icon = pystray.Icon(
     ),
 )
 
+threading.Thread(target=automatic_time, daemon=True).start()
 icon.run()
