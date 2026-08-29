@@ -127,7 +127,7 @@ def automatic_time():
             jetzt = datetime.datetime.now()
 
             if jetzt.minute in (0, 30) and jetzt.minute != letzte_ansage_minute:
-                ansage_ausfuehren(force=True)
+                ansage_ausfuehren(force=False)
                 letzte_ansage_minute = jetzt.minute
 
             if jetzt.minute not in (0, 30):
