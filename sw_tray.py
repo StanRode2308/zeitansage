@@ -4,9 +4,11 @@ import os
 import threading
 import tkinter as tk
 from tkinter import simpledialog
+from tkinter import messagebox
 import PIL.Image
 import pystray
 import asyncio
+import re
 
 from Xlib.protocol.rq import Bool
 
@@ -117,7 +119,7 @@ def custom_text(icon, item):
 
 def ballplaying(icon, item):
     """Ansage zum Ballspielverbot außerhalb der Felder"""
-    speak("Achtung! Das Ballspielen ist nur auf unseren Spielfeldern erlaubt!", "-40%", Gong.NORMAL)
+    speak("Achtung! Das Ballspielen ist nur auf unseren Spielfeldern erlaubt!", "", Gong.NORMAL)
 
 def automatic_time():
     """Startet die Schleife zum automatischen Ausführen aller halben Stunde"""
@@ -177,6 +179,63 @@ def ansage_ausfuehren(force: bool = False):
         text = now.strftime("Es ist %H Uhr %M.")
     speak(text, "-60%", Gong.TIME, False)
 
+def custom_license_plate(icon, item):
+    """Öffnet ein GUI-Eingabefenster für Kennzeichen und schließt es nach Absenden direkt wieder."""
+
+    def open_gui():
+        root = tk.Tk()
+        root.title("Kennzeichen ausrufen")
+        root.geometry("400x180")
+        root.resizable(False, False)
+        root.attributes("-topmost", True)
+
+        def verarbeite_eingabe(event=None):
+            eingabe = entry_kennzeichen.get().strip()
+
+            bereinigt = eingabe.upper().replace(" ", "").replace("-", "")
+            muster = r"^([A-ZÄÖÜ]{1,3})([A-Z]{1,2})([1-9][0-9]{0,3})([EH]?)$"
+            match = re.match(muster, bereinigt)
+
+            if match:
+                stadt, buchstaben, zahlen, zusatz = match.groups()
+
+                buchstabiert_ort = " ".join(list(stadt))
+                buchstabiert_mitte = " ".join(list(buchstaben))
+                buchstabiert_zahlen = " ".join(list(zahlen))
+
+                ansage_text = (
+                    f"Achtung! Der Fahrer des Wagens mit dem Amtlichen Kennzeichen "
+                    f"{buchstabiert_ort}, {buchstabiert_mitte}, {buchstabiert_zahlen} "
+                    f"{zusatz} bitte beim Personal melden."
+                )
+
+                root.destroy()
+
+                speak(ansage_text, "-40%", Gong.NORMAL, translation=False)
+            else:
+                messagebox.showerror(
+                    "Fehler",
+                    "Ungültiges Kennzeichen-Format!\nBeispiel: B-MW 1234 oder BMW1234",
+                    parent=root
+                )
+
+        tk.Label(root, text="Kennzeichen für Ansage eingeben:", font=("Arial", 11, "bold")).pack(pady=(15, 5))
+
+        entry_kennzeichen = tk.Entry(root, font=("Arial", 16, "bold"), justify="center", width=18)
+        entry_kennzeichen.pack(pady=5)
+        entry_kennzeichen.focus()
+
+        root.bind('<Return>', verarbeite_eingabe)
+
+        tk.Button(
+            root, text="Ansage abspielen", font=("Arial", 11, "bold"),
+            bg="#4CAF50", fg="white", command=verarbeite_eingabe, padx=10, pady=5
+        ).pack(pady=15)
+
+        root.mainloop()
+
+    threading.Thread(target=open_gui, daemon=True).start()
+
 #--------------------------------------------------------------------------------------------------------#
 icon = pystray.Icon(
     "SoccerWorld",
@@ -199,6 +258,7 @@ icon = pystray.Icon(
         pystray.MenuItem("Ballspielen", ballplaying),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Manuelle Ansage", custom_text),
+        pystray.MenuItem("Kennzeichen ausrufen", custom_license_plate),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Beenden", beenden),
     ),
