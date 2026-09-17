@@ -10,8 +10,6 @@ import pystray
 import asyncio
 import re
 
-from Xlib.protocol.rq import Bool
-
 import edge_tts
 import datetime
 import time
