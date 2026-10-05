@@ -3,8 +3,10 @@
 import os
 import threading
 import tkinter as tk
+from operator import is_none
 from tkinter import simpledialog
 from tkinter import ttk
+import customtkinter as ctk
 from tkinter import messagebox
 import PIL.Image
 from PIL import ImageTk
@@ -26,6 +28,13 @@ IMAGE_PATH = os.path.join(SKRIPT_ORDNER, "sw_logo.png")
 ANSAGE_FILE = os.path.join(SKRIPT_ORDNER, "ansage_tray.mp3")
 LOG_FILE = os.path.join(SKRIPT_ORDNER, "error_tray.log")
 letzte_ansage_minute = -1
+THEME_BG = "#fff4ec"
+THEME_FG = "#4a2c2a"
+THEME_ACCENT = "#e07a5f"
+THEME_ACCENT_FG = "#ffffff"
+THEME_FIELD_BG = "#ffffff"
+THEME_FONT_FAMILY = "Georgia"
+THEME_FONT_SIZE = 10
 
 class Gong(Enum):
     NORMAL = os.path.join(SKRIPT_ORDNER, "gong_sw_tray.mp3")
@@ -87,6 +96,10 @@ class ToolTip:
             self.tip.destroy()
             self.tip = None
 
+def apply_theme(root):
+    """Apply the project theme to a window. CustomTkinter styles per widget,
+    so the widgets themselves carry the rest of the colours."""
+    root.configure(fg_color=THEME_BG)
 
 class Application:
     def __init__(self, root):
@@ -104,51 +117,115 @@ class Application:
         self.switch2_var = tk.IntVar()
         self.switch3_var = tk.IntVar()
 
-        self.label1 = tk.Label(root, text="Bitte Informationen über das Fahrzeug angeben!", font=("Helvetica", 15, "bold"))
-        self.label1.place(x=260, y=10, width=300, height=70)
+        self.label1 = ctk.CTkLabel(root, text="Bitte Informationen über das Fahrzeug angeben!", font=ctk.CTkFont(family="Helvetica", size=15, weight="bold"), text_color=THEME_FG, width=300, height=70)
+        self.label1.place(x=260, y=10)
 
-        self.Brand = tk.Entry(root)
-        self.Brand.place(x=210, y=134, width=130, height=20)
+        self.Brand = ctk.CTkEntry(root, fg_color=THEME_FIELD_BG, text_color=THEME_FG, font=ctk.CTkFont(family=THEME_FONT_FAMILY, size=THEME_FONT_SIZE), width=130, height=30)
+        self.Brand.place(x=210, y=134)
         ToolTip(self.Brand, "Automarke")
 
-        self.w_Brand = tk.Label(root, text="Marke")
-        self.w_Brand.place(x=210, y=114, width=40, height=20)
+        self.w_Brand = ctk.CTkLabel(root, text="Marke", text_color=THEME_FG, font=ctk.CTkFont(family=THEME_FONT_FAMILY, size=THEME_FONT_SIZE), width=40, height=20)
+        self.w_Brand.place(x=210, y=114)
 
-        self.w_Color = tk.Label(root, text="Farbe")
-        self.w_Color.place(x=480, y=110, width=40, height=20)
+        self.w_Color = ctk.CTkLabel(root, text="Farbe", text_color=THEME_FG, font=ctk.CTkFont(family=THEME_FONT_FAMILY, size=THEME_FONT_SIZE), width=40, height=20)
+        self.w_Color.place(x=480, y=110)
 
-        self.optionmenu_color = tk.OptionMenu(root, self.optionmenu_color_var, "Weiß", "Gelb", "Orange", "Rot", "Lila / Violett", "Blau", "Grün", "Grau", "Braun", "Schwarz")
-        self.optionmenu_color.place(x=480, y=130, width=150, height=28)
+        self.optionmenu_color = ctk.CTkOptionMenu(root, values=["Keine", "Weiß", "Gelb", "Orange", "Rot", "Lila / Violett", "Blau", "Grün", "Grau", "Braun", "Schwarz"], variable=self.optionmenu_color_var, fg_color=THEME_ACCENT, text_color=THEME_ACCENT_FG, width=150, height=28)
+        self.optionmenu_color.place(x=480, y=130)
         ToolTip(self.optionmenu_color, "Farbe angeben")
 
-        self.switch2 = tk.Checkbutton(root, text="Enabled", variable=self.switch2_var, command=self.brand_switch)
-        self.switch2.place(x=220, y=154, width=120, height=28)
+        self.separator2 = ctk.CTkFrame(root, corner_radius=0, fg_color="gray70", width=800, height=20)
+        self.separator2.place(x=0, y=190)
 
-        self.switch3 = tk.Checkbutton(root, text="Enabled", variable=self.switch3_var, command=self.color_switch)
-        self.switch3.place(x=480, y=160, width=150, height=30)
-
-        self.separator2 = ttk.Separator(root, orient="horizontal")
-        self.separator2.place(x=0, y=190, width=800, height=20)
-
-        self.label5 = tk.Label(root, text="Kennzeichen", font=("Helvetica", 11, "bold"))
-        self.label5.place(x=345, y=210, width=130, height=30)
+        self.label5 = ctk.CTkLabel(root, text="Kennzeichen", font=ctk.CTkFont(family="Helvetica", size=11, weight="bold"), text_color=THEME_FG, width=130, height=30)
+        self.label5.place(x=345, y=210)
 
         # Kept on self, or Python garbage-collects it and the image goes blank.
-        self.image2_image = ImageTk.PhotoImage(PIL.Image.open("kennzeichen.png").resize((250, 55)))
-        self.image2 = tk.Label(root, image=self.image2_image)
-        self.image2.place(x=290, y=263, width=250, height=55)
+        self.image2_image = ctk.CTkImage(PIL.Image.open("kennzeichen.png"), size=(250, 55))
+        self.image2 = ctk.CTkLabel(root, text="", image=self.image2_image)
+        self.image2.place(x=290, y=263)
 
-        self.entry4 = tk.Entry(root)
-        self.entry4.place(x=315, y=271, width=50, height=40)
+        self.entry4 = ctk.CTkEntry(root, placeholder_text="L", fg_color=THEME_FIELD_BG, text_color=THEME_FG, font=ctk.CTkFont(family="Helvetica", size=21), width=50, height=40)
+        self.entry4.place(x=330, y=271)
 
-        self.entry7 = tk.Entry(root)
-        self.entry7.place(x=410, y=270, width=120, height=40)
+        self.entry7 = ctk.CTkEntry(root, placeholder_text="KC 946", font=ctk.CTkFont(family="Helvetica", size=21), fg_color=THEME_FIELD_BG, text_color=THEME_FG, width=120, height=40)
+        self.entry7.place(x=410, y=271)
 
-    def brand_switch(self):
-        pass
+        self.submit = ctk.CTkButton(root, text="Ausrufen", command=self.on_submit, fg_color=THEME_ACCENT, text_color=THEME_ACCENT_FG, font=ctk.CTkFont(family=THEME_FONT_FAMILY, size=THEME_FONT_SIZE), width=96, height=32)
+        self.submit.place(x=360, y=390)
 
-    def color_switch(self):
-        pass
+    def on_submit(self):
+        brand = self.Brand._entry.get()
+        color = self.optionmenu_color.get()
+        front_part = self.entry4._entry.get()
+        last_part = self.entry7._entry.get()
+        pattern = r"^([A-ZÄÖÜ]{1,3})([A-Z]{1,2})([1-9][0-9]{0,3})([EH]?)$"
+        match_check = (front_part + last_part).upper().replace(" ", "").replace("-", "")
+
+        def throw_error_no_license():
+            messagebox.showerror("Fehler!",
+                                 "Es wurde kein Kennzeichen angegeben!",
+                                 parent=self.root)
+            return
+
+        if front_part == self.entry4._placeholder_text:
+            throw_error_no_license()
+            return
+
+        if last_part == self.entry7._placeholder_text:
+            throw_error_no_license()
+            return
+
+        match = re.match(pattern, match_check)
+        if not match:
+            throw_error_no_license()
+            return
+
+
+
+        def cleanup_entry(front_part, last_part):
+            brand.replace(" ", "")
+            front_part.strip()
+            last_part.strip()
+            front_part.upper().replace(" ", "")
+            last_part.upper().replace(" ", "").replace("-", " ")
+
+            front_part = " ,".join(list(front_part))
+            last_part = " ,".join(list(last_part))
+
+            if brand == "" and color== "Keine":
+                speech_text = (
+                    f"Achtung! Der Fahrer des Wagens mit dem amtlichen Kennzeichen: "
+                    f"{front_part},  Trennung, {last_part}, "
+                    "bitte schnell an der Rezeption melden!"
+                )
+
+            elif brand == "":
+                speech_text = (
+                    f"Achtung! Der Fahrer des Wagens mit der Farbe: {color} und dem amtlichen Kennzeichen: "
+                    f"{front_part},  Trennung, {last_part}, "
+                    "bitte schnell an der Rezeption melden!"
+                )
+
+            elif color == "Keine":
+                speech_text = (
+                    f"Achtung! Der Fahrer des {brand}s mit dem amtlichen Kennzeichen: "
+                    f"{front_part},  Trennung, {last_part}, "
+                    "bitte schnell an der Rezeption melden!"
+                )
+            else:
+                speech_text = (
+                    f"Achtung! Der Fahrer des {brand}s mit der Farbe: {color} und dem amtlichen Kennzeichen: "
+                    f"{front_part},  Trennung, {last_part}, "
+                    "bitte schnell an der Rezeption melden!"
+                )
+
+            speak(speech_text, "-40%", Gong.NORMAL, translation=False)
+            self.root.destroy()
+
+
+        cleanup_entry(front_part, last_part)
+
 
 
 def speak(text, volume, gong: Gong, translation: bool = True):
@@ -251,7 +328,6 @@ def automatic_time():
 
             time.sleep(5)
 
-
 def ist_im_zeitfenster(jetzt: datetime.datetime) -> bool:
     """Prüft, ob der Zeitpunkt im erlaubten Zeitfenster liegt."""
     weekday = jetzt.weekday()
@@ -267,7 +343,6 @@ def ist_im_zeitfenster(jetzt: datetime.datetime) -> bool:
             return False
     return True
 
-
 def play_audio(file_path: str):
     """Spielt eine einzelne Audiodatei über Pygame ab."""
     if not os.path.exists(file_path):
@@ -276,7 +351,6 @@ def play_audio(file_path: str):
     pygame.mixer.music.play()
     while pygame.mixer.music.get_busy():
         pygame.time.Clock().tick(10)
-
 
 def ansage_ausfuehren(force: bool = False):
     """Erzeugt und spielt die Zeitansage ab."""
@@ -296,7 +370,8 @@ def ansage_ausfuehren(force: bool = False):
 def custom_license_plate(icon, item):
     """Öffnet ein GUI-Eingabefenster für Kennzeichen und schließt es nach Absenden direkt wieder."""
 
-    root = tk.Tk()
+    ctk.set_appearance_mode("light")
+    root = ctk.CTk()
     app = Application(root)
     root.mainloop()
 #--------------------------------------------------------------------------------------------------------#
