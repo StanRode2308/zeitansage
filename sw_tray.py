@@ -224,7 +224,7 @@ class Application:
             self.root.destroy()
 
 
-        cleanup_entry(front_part, last_part)
+        cleanup_entry(front_part, last_part) #
 
 
 
