@@ -3,13 +3,10 @@
 import os
 import threading
 import tkinter as tk
-from operator import is_none
 from tkinter import simpledialog
-from tkinter import ttk
 import customtkinter as ctk
 from tkinter import messagebox
 import PIL.Image
-from PIL import ImageTk
 import pystray
 import asyncio
 import re
@@ -35,6 +32,7 @@ THEME_ACCENT_FG = "#ffffff"
 THEME_FIELD_BG = "#ffffff"
 THEME_FONT_FAMILY = "Georgia"
 THEME_FONT_SIZE = 10
+audio_lock = threading.Lock()
 
 class Gong(Enum):
     NORMAL = os.path.join(SKRIPT_ORDNER, "gong_sw_tray.mp3")
@@ -111,11 +109,11 @@ class Application:
             f"+{(root.winfo_screenwidth() - 800) // 2}"
             f"+{(root.winfo_screenheight() - 500) // 2}"
         )
+        root.attributes("-topmost", True)
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
 
         self.optionmenu_color_var = tk.StringVar()
-        self.optionmenu_color_var.set("Weiß")
-        self.switch2_var = tk.IntVar()
-        self.switch3_var = tk.IntVar()
+        self.optionmenu_color_var.set("Keine")
 
         self.label1 = ctk.CTkLabel(root, text="Bitte Informationen über das Fahrzeug angeben!", font=ctk.CTkFont(family="Helvetica", size=15, weight="bold"), text_color=THEME_FG, width=300, height=70)
         self.label1.place(x=260, y=10)
@@ -154,6 +152,17 @@ class Application:
         self.submit = ctk.CTkButton(root, text="Ausrufen", command=self.on_submit, fg_color=THEME_ACCENT, text_color=THEME_ACCENT_FG, font=ctk.CTkFont(family=THEME_FONT_FAMILY, size=THEME_FONT_SIZE), width=96, height=32)
         self.submit.place(x=360, y=390)
 
+    def hide_window(self):
+        """Versteckt das Fenster unsichtbar im Hintergrund."""
+        self.root.withdraw()
+
+    def reset_fields(self):
+        """Leert alle Eingabefelder, damit das Fenster beim nächsten Öffnen frisch ist."""
+        self.Brand.delete(0, tk.END)
+        self.optionmenu_color_var.set("Keine")
+        self.entry4.delete(0, tk.END)
+        self.entry7.delete(0, tk.END)
+
     def on_submit(self):
         brand = self.Brand._entry.get()
         color = self.optionmenu_color.get()
@@ -187,8 +196,8 @@ class Application:
             brand.replace(" ", "")
             front_part.strip()
             last_part.strip()
-            front_part.upper().replace(" ", "")
-            last_part.upper().replace(" ", "").replace("-", " ")
+            front_part = front_part.upper().replace(" ", "")
+            last_part = last_part.upper().replace(" ", "").replace("-", " ")
 
             front_part = " ,".join(list(front_part))
             last_part = " ,".join(list(last_part))
@@ -221,56 +230,54 @@ class Application:
                 )
 
             speak(speech_text, "-40%", Gong.NORMAL, translation=False)
-            self.root.destroy()
 
-
-        cleanup_entry(front_part, last_part) #
-
-
+            self.hide_window()
+        cleanup_entry(front_part, last_part)
 
 def speak(text, volume, gong: Gong, translation: bool = True):
     """Spielt den angegebenen Text mit einem Gong davor ab"""
-    voice = "de-DE-KatjaNeural"
-    async def generate_speech(text):
-        if translation:
-            translator = MyMemoryTranslator(source="de-DE", target="en-US")
-            text = text + " " + translator.translate(text)
-        communicate = edge_tts.Communicate(
-            text=text, voice=voice, pitch="+5Hz", rate="-6%", volume=volume
-        )
-        await communicate.save(ANSAGE_FILE)
-
-    try:
-        if sys.platform == "win32":
-            asyncio.set_event_loop_policy(
-                asyncio.WindowsSelectorEventLoopPolicy()
+    with audio_lock:
+        voice = "de-DE-KatjaNeural"
+        async def generate_speech(text):
+            if translation:
+                translator = MyMemoryTranslator(source="de-DE", target="en-US")
+                text = text + ". " + translator.translate(text)
+            communicate = edge_tts.Communicate(
+                text=text, voice=voice, pitch="+5Hz", rate="-6%", volume=volume
             )
-        asyncio.run(generate_speech(text))
-    except Exception:
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(f"Fehler bei TTS: \n{traceback.format_exc()}\n")
-        return
+            await communicate.save(ANSAGE_FILE)
 
-    try:
-        pygame.mixer.init()
+        try:
+            if sys.platform == "win32":
+                asyncio.set_event_loop_policy(
+                    asyncio.WindowsSelectorEventLoopPolicy()
+                )
+            asyncio.run(generate_speech(text))
+        except Exception:
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(f"Fehler bei TTS: \n{traceback.format_exc()}\n")
+            return
 
-        if os.path.exists(gong.value):
-            play_audio(gong.value)
+        try:
+            pygame.mixer.init()
 
-        if os.path.exists(ANSAGE_FILE):
-            play_audio(ANSAGE_FILE)
+            if os.path.exists(gong.value):
+                play_audio(gong.value)
 
-        pygame.mixer.quit()
-    except Exception:
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(f"Fehler bei Audiowiedergabe: \n{traceback.format_exc()}\n")
-    finally:
-        # Temporäre Datei immer löschen
-        if os.path.exists(ANSAGE_FILE):
-            try:
-                os.remove(ANSAGE_FILE)
-            except OSError:
-                pass
+            if os.path.exists(ANSAGE_FILE):
+                play_audio(ANSAGE_FILE)
+
+            pygame.mixer.quit()
+        except Exception:
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(f"Fehler bei Audiowiedergabe: \n{traceback.format_exc()}\n")
+        finally:
+            # Temporäre Datei immer löschen
+            if os.path.exists(ANSAGE_FILE):
+                try:
+                    os.remove(ANSAGE_FILE)
+                except OSError:
+                    pass
 
 def say_time(icon, item):
     """Ansage der aktuellen Zeit"""
@@ -279,38 +286,54 @@ def say_time(icon, item):
    ).start()
 
 def leave_court(icon, item):
-    """Ansage zum Verlassen des Feldes. Mittels item wird die Feld Nummer übergeben"""
+    """Ansage zum Verlassen des Feldes. Mittels item wird die Feldnummer übergeben"""
     if str(item) == "Pepsi":
-        speak("Bitte das kleine Feld verlassen!", "-40%", Gong.NORMAL)
+        text = "Bitte das kleine Feld verlassen!"
     else:
-        speak(f"Bitte Feld {item} verlassen!", "-40%", Gong.NORMAL)
+        text= f"Bitte Feld {item} verlassen!"
+
+    threading.Thread(
+        target=speak,
+        args=(text, "-40%", Gong.NORMAL),
+        daemon=True
+    ).start()
 
 def beenden(icon, item):
     icon.stop()
+    main_root.quit()
+    sys.exit(0)
 
 def custom_text(icon, item):
-    """Ansage einen individuellen Textes, welcher vorher abgefragt wird"""
+    """Ansage eines individuellen Textes, welcher vorher abgefragt wird"""
+
     def open_dialog():
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
+        dialog_parent = tk.Toplevel(main_root)
+        dialog_parent.withdraw()
+        dialog_parent.attributes("-topmost", True)
 
         user_input = simpledialog.askstring(
             title="SoccerWorld Durchsage",
             prompt="Welche Durchsage soll gesprochen werden?",
-            parent=root,
+            parent=dialog_parent,
         )
-
-        root.destroy()
+        dialog_parent.destroy()
 
         if user_input:
-            speak(user_input, "-40%", Gong.NORMAL)
-
-    threading.Thread(target=open_dialog, daemon=True).start()
+            threading.Thread(
+                target=speak,
+                args=(user_input, "-40%", Gong.NORMAL),
+                daemon=True
+            ).start()
+    main_root.after(0, open_dialog)
 
 def ballplaying(icon, item):
     """Ansage zum Ballspielverbot außerhalb der Felder"""
-    speak("Achtung! Das Ballspielen ist nur auf unseren Spielfeldern erlaubt!", "", Gong.NORMAL)
+    text = "Achtung! Das Ballspielen ist nur auf unseren Spielfeldern erlaubt!"
+    threading.Thread(
+        target=speak,
+        args=(text, "-40%", Gong.NORMAL),
+        daemon=True
+    ).start()
 
 def automatic_time():
     """Startet die Schleife zum automatischen Ausführen aller halben Stunde"""
@@ -367,13 +390,23 @@ def ansage_ausfuehren(force: bool = False):
         text = now.strftime("Es ist %H Uhr %M.")
     speak(text, "-60%", Gong.TIME, False)
 
-def custom_license_plate(icon, item):
-    """Öffnet ein GUI-Eingabefenster für Kennzeichen und schließt es nach Absenden direkt wieder."""
+ctk.set_appearance_mode("light")
+main_root = ctk.CTk()
+main_root.withdraw()
 
-    ctk.set_appearance_mode("light")
-    root = ctk.CTk()
-    app = Application(root)
-    root.mainloop()
+app_window = ctk.CTkToplevel(main_root)
+app = Application(app_window)
+app_window.withdraw()
+
+def open_license_window():
+    """Wird vom Main-Thread ausgeführt: Felder leeren und Fenster zeigen."""
+    app.reset_fields()
+    app_window.deiconify()
+    app_window.focus()
+
+def custom_license_plate(icon, item):
+    """Sagt der GUI aus dem Tray-Thread sicher Bescheid, dass sie sich zeigen soll."""
+    main_root.after(0, open_license_window)
 #--------------------------------------------------------------------------------------------------------#
 icon = pystray.Icon(
     "SoccerWorld",
@@ -402,5 +435,7 @@ icon = pystray.Icon(
     ),
 )
 
+threading.Thread(target=icon.run, daemon=True).start()
 threading.Thread(target=automatic_time, daemon=True).start()
-icon.run()
+
+main_root.mainloop()
