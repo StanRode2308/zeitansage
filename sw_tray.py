@@ -198,48 +198,46 @@ class Application:
             throw_error_no_license()
             return
 
-
-
         def cleanup_entry(front_part, last_part):
-            brand.replace(" ", "")
-            front_part.strip()
-            last_part.strip()
-            front_part = front_part.upper().replace(" ", "")
-            last_part = last_part.upper().replace(" ", "").replace("-", " ")
+            brand_clean = brand.replace(" ", "").strip()
+            front_part = front_part.strip().upper().replace(" ", "")
+            last_part = last_part.strip().upper().replace(" ", "").replace("-", " ")
 
-            front_part = " ,".join(list(front_part))
-            last_part = " ,".join(list(last_part))
+            front_speech = " ,".join(list(front_part))
+            last_speech = " ,".join(list(last_part))
 
-            if brand == "" and color== "Keine":
+            if brand_clean == "" and color == "Keine":
                 speech_text = (
                     f"Achtung! Der Fahrer des Wagens mit dem amtlichen Kennzeichen: "
-                    f"{front_part},  Trennung, {last_part}, "
+                    f"{front_speech}, Trennung, {last_speech}, "
                     "bitte schnell an der Rezeption melden!"
                 )
-
-            elif brand == "":
+            elif brand_clean == "":
                 speech_text = (
                     f"Achtung! Der Fahrer des Wagens mit der Farbe: {color} und dem amtlichen Kennzeichen: "
-                    f"{front_part},  Trennung, {last_part}, "
+                    f"{front_speech}, Trennung, {last_speech}, "
                     "bitte schnell an der Rezeption melden!"
                 )
-
             elif color == "Keine":
                 speech_text = (
-                    f"Achtung! Der Fahrer des {brand}s mit dem amtlichen Kennzeichen: "
-                    f"{front_part},  Trennung, {last_part}, "
+                    f"Achtung! Der Fahrer des {brand_clean}s mit dem amtlichen Kennzeichen: "
+                    f"{front_speech}, Trennung, {last_speech}, "
                     "bitte schnell an der Rezeption melden!"
                 )
             else:
                 speech_text = (
-                    f"Achtung! Der Fahrer des {brand}s mit der Farbe: {color} und dem amtlichen Kennzeichen: "
-                    f"{front_part},  Trennung, {last_part}, "
+                    f"Achtung! Der Fahrer des {brand_clean}s mit der Farbe: {color} und dem amtlichen Kennzeichen: "
+                    f"{front_speech}, Trennung, {last_speech}, "
                     "bitte schnell an der Rezeption melden!"
                 )
-
-            speak(speech_text, "-40%", Gong.NORMAL, translation=False)
-
             self.hide_window()
+
+            threading.Thread(
+                target=speak,
+                args=(speech_text, "-40%", Gong.NORMAL, False),
+                daemon=True
+            ).start()
+
         cleanup_entry(front_part, last_part)
 
 class LiveOverlay:
@@ -299,7 +297,8 @@ def speak(text, volume, gong: Gong, translation: bool = True):
             asyncio.run(generate_speech(text))
         except Exception as e:
             logger.error(f"Fehler bei der TTS-Generierung: {e}", exc_info=True)
-            icon.notify("Fehler bei der Ausgabe! Siehe Logs." "❌ Ansage fehlgeschlagen")
+            icon.notify("Fehler bei der Ausgabe! Siehe Logs.", "❌ Ansage fehlgeschlagen")
+            main_root.after(0, live_overlay.hide)
             return
 
         try:
@@ -314,7 +313,7 @@ def speak(text, volume, gong: Gong, translation: bool = True):
             pygame.mixer.quit()
         except Exception as e:
             logger.error(f"Fehler bei der Audiowiedergabe: {e}", exc_info=True)
-            icon.notify("Fehler bei der Ausgabe! Siehe Logs." "❌ Ansage fehlgeschlagen")
+            icon.notify("Fehler bei der Ausgabe! Siehe Logs.", "❌ Ansage fehlgeschlagen")
 
         else:
             logger.info("Ansage erfolgreich abgespielt.")
@@ -393,20 +392,19 @@ def ballplaying(icon, item):
 
 def automatic_time():
     """Startet die Schleife zum automatischen Ausführen aller halben Stunde"""
+    global letzte_ansage_minute
     while True:
-        global letzte_ansage_minute
-        while True:
-            jetzt = datetime.datetime.now()
+        jetzt = datetime.datetime.now()
 
-            if jetzt.minute in (0, 30) and jetzt.minute != letzte_ansage_minute:
-                logger.info("Automatische Zeitansage ausgelöst.")
-                ansage_ausfuehren(force=False)
-                letzte_ansage_minute = jetzt.minute
+        if jetzt.minute in (0, 30) and jetzt.minute != letzte_ansage_minute:
+            logger.info("Automatische Zeitansage ausgelöst.")
+            ansage_ausfuehren(force=False)
+            letzte_ansage_minute = jetzt.minute
 
-            if jetzt.minute not in (0, 30):
-                letzte_ansage_minute = -1
+        if jetzt.minute not in (0, 30):
+            letzte_ansage_minute = -1
 
-            time.sleep(5)
+        time.sleep(5)
 
 def ist_im_zeitfenster(jetzt: datetime.datetime) -> bool:
     """Prüft, ob der Zeitpunkt im erlaubten Zeitfenster liegt."""
@@ -497,5 +495,6 @@ threading.Thread(target=icon.run, daemon=True).start()
 threading.Thread(target=automatic_time, daemon=True).start()
 
 logger.info("SoccerWorld Tray App erfolgreich gestartet und bereit.")
+time.sleep(1)
 icon.notify("SoccerWorld Tray App wurde erfolgreich gestartet.")
 main_root.mainloop()
