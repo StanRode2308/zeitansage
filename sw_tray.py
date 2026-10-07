@@ -318,6 +318,10 @@ def custom_text(icon, item):
         )
         dialog_parent.destroy()
 
+        if user_input == "67" or " 6 7 " or "six seven" or "sixseven":
+            messagebox.showwarning(title="Nope", message="Nice Try ;)")
+            return
+
         if user_input:
             threading.Thread(
                 target=speak,
