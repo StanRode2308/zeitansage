@@ -242,9 +242,44 @@ class Application:
             self.hide_window()
         cleanup_entry(front_part, last_part)
 
+class LiveOverlay:
+    def __init__(self, root):
+        self.window = ctk.CTkToplevel(root)
+        self.window.withdraw()
+
+        self.window.overrideredirect(True)
+        self.window.attributes("-topmost", True)
+        self.window.configure(fg_color=THEME_ACCENT)
+
+        self.label = ctk.CTkLabel(
+            self.window,
+            text="🟢 Durchsage läuft...",
+            font=ctk.CTkFont(family=THEME_FONT_FAMILY, size=16, weight="bold"),
+            text_color=THEME_ACCENT_FG
+        )
+        self.label.pack(expand=True, fill="both", padx=20, pady=15)
+
+    def show(self):
+        """Berechnet die Position unten rechts und zeigt das Overlay."""
+        self.window.update_idletasks()
+        sw = self.window.winfo_screenwidth()
+        sh = self.window.winfo_screenheight()
+
+        x = sw - 300  # Breite + Abstand zum rechten Rand
+        y = sh - 140  # Höhe + Abstand zur Taskleiste unten
+
+        self.window.geometry(f"260x60+{x}+{y}")
+        self.window.deiconify()
+        self.window.lift()
+
+    def hide(self):
+        """Versteckt das Overlay wieder."""
+        self.window.withdraw()
+
 def speak(text, volume, gong: Gong, translation: bool = True):
     """Spielt den angegebenen Text mit einem Gong davor ab"""
     with audio_lock:
+        main_root.after(0, live_overlay.show)
         logger.info(f"Ansage gestartet: '{text}'")
         voice = "de-DE-KatjaNeural"
         async def generate_speech(text):
@@ -286,6 +321,7 @@ def speak(text, volume, gong: Gong, translation: bool = True):
             short_text = text[:40] + "..." if len(text) > 40 else text
             icon.notify(short_text, "✅ Ansage erfolgreich")
         finally:
+            main_root.after(0, live_overlay.hide)
             if os.path.exists(ANSAGE_FILE):
                 try:
                     os.remove(ANSAGE_FILE)
@@ -414,6 +450,7 @@ def ansage_ausfuehren(force: bool = False):
 ctk.set_appearance_mode("light")
 main_root = ctk.CTk()
 main_root.withdraw()
+live_overlay = LiveOverlay(main_root)
 
 app_window = ctk.CTkToplevel(main_root)
 app = Application(app_window)
