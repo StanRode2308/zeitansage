@@ -10,12 +10,13 @@ import PIL.Image
 import pystray
 import asyncio
 import re
+import logging
+from logging.handlers import RotatingFileHandler
 
 import edge_tts
 import datetime
 import time
 import sys
-import traceback
 import pygame
 from deep_translator import MyMemoryTranslator
 from enum import Enum
@@ -23,7 +24,13 @@ from enum import Enum
 SKRIPT_ORDNER = os.path.dirname(os.path.abspath(__file__))
 IMAGE_PATH = os.path.join(SKRIPT_ORDNER, "sw_logo.png")
 ANSAGE_FILE = os.path.join(SKRIPT_ORDNER, "ansage_tray.mp3")
-LOG_FILE = os.path.join(SKRIPT_ORDNER, "error_tray.log")
+LOG_FILE = os.path.join(SKRIPT_ORDNER, "soccerworld.log")
+logger = logging.getLogger("SoccerWorld")
+logger.setLevel(logging.INFO)
+handler = RotatingFileHandler(LOG_FILE, maxBytes=5*1024*1024, backupCount=2, encoding="utf-8")
+formatter = logging.Formatter('%(asctime)s | %(levelname)-8s | %(message)s', datefmt='%d.%m.%Y %H:%M:%S')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 letzte_ansage_minute = -1
 THEME_BG = "#fff4ec"
 THEME_FG = "#4a2c2a"
@@ -33,6 +40,7 @@ THEME_FIELD_BG = "#ffffff"
 THEME_FONT_FAMILY = "Georgia"
 THEME_FONT_SIZE = 10
 audio_lock = threading.Lock()
+
 
 class Gong(Enum):
     NORMAL = os.path.join(SKRIPT_ORDNER, "gong_sw_tray.mp3")
@@ -190,53 +198,87 @@ class Application:
             throw_error_no_license()
             return
 
-
-
         def cleanup_entry(front_part, last_part):
-            brand.replace(" ", "")
-            front_part.strip()
-            last_part.strip()
-            front_part = front_part.upper().replace(" ", "")
-            last_part = last_part.upper().replace(" ", "").replace("-", " ")
+            brand_clean = brand.replace(" ", "").strip()
+            front_part = front_part.strip().upper().replace(" ", "")
+            last_part = last_part.strip().upper().replace(" ", "").replace("-", " ")
 
-            front_part = " ,".join(list(front_part))
-            last_part = " ,".join(list(last_part))
+            front_speech = " ,".join(list(front_part))
+            last_speech = " ,".join(list(last_part))
 
-            if brand == "" and color== "Keine":
+            if brand_clean == "" and color == "Keine":
                 speech_text = (
                     f"Achtung! Der Fahrer des Wagens mit dem amtlichen Kennzeichen: "
-                    f"{front_part},  Trennung, {last_part}, "
+                    f"{front_speech}, Trennung, {last_speech}, "
                     "bitte schnell an der Rezeption melden!"
                 )
-
-            elif brand == "":
+            elif brand_clean == "":
                 speech_text = (
                     f"Achtung! Der Fahrer des Wagens mit der Farbe: {color} und dem amtlichen Kennzeichen: "
-                    f"{front_part},  Trennung, {last_part}, "
+                    f"{front_speech}, Trennung, {last_speech}, "
                     "bitte schnell an der Rezeption melden!"
                 )
-
             elif color == "Keine":
                 speech_text = (
-                    f"Achtung! Der Fahrer des {brand}s mit dem amtlichen Kennzeichen: "
-                    f"{front_part},  Trennung, {last_part}, "
+                    f"Achtung! Der Fahrer des {brand_clean}s mit dem amtlichen Kennzeichen: "
+                    f"{front_speech}, Trennung, {last_speech}, "
                     "bitte schnell an der Rezeption melden!"
                 )
             else:
                 speech_text = (
-                    f"Achtung! Der Fahrer des {brand}s mit der Farbe: {color} und dem amtlichen Kennzeichen: "
-                    f"{front_part},  Trennung, {last_part}, "
+                    f"Achtung! Der Fahrer des {brand_clean}s mit der Farbe: {color} und dem amtlichen Kennzeichen: "
+                    f"{front_speech}, Trennung, {last_speech}, "
                     "bitte schnell an der Rezeption melden!"
                 )
-
-            speak(speech_text, "-40%", Gong.NORMAL, translation=False)
-
             self.hide_window()
+
+            threading.Thread(
+                target=speak,
+                args=(speech_text, "-40%", Gong.NORMAL, False),
+                daemon=True
+            ).start()
+
         cleanup_entry(front_part, last_part)
+
+class LiveOverlay:
+    def __init__(self, root):
+        self.window = ctk.CTkToplevel(root)
+        self.window.withdraw()
+
+        self.window.overrideredirect(True)
+        self.window.attributes("-topmost", True)
+        self.window.configure(fg_color=THEME_ACCENT)
+
+        self.label = ctk.CTkLabel(
+            self.window,
+            text="🟢 Durchsage läuft...",
+            font=ctk.CTkFont(family=THEME_FONT_FAMILY, size=16, weight="bold"),
+            text_color=THEME_ACCENT_FG
+        )
+        self.label.pack(expand=True, fill="both", padx=20, pady=15)
+
+    def show(self):
+        """Berechnet die Position unten rechts und zeigt das Overlay."""
+        self.window.update_idletasks()
+        sw = self.window.winfo_screenwidth()
+        sh = self.window.winfo_screenheight()
+
+        x = sw - 300  # Breite + Abstand zum rechten Rand
+        y = sh - 140  # Höhe + Abstand zur Taskleiste unten
+
+        self.window.geometry(f"260x60+{x}+{y}")
+        self.window.deiconify()
+        self.window.lift()
+
+    def hide(self):
+        """Versteckt das Overlay wieder."""
+        self.window.withdraw()
 
 def speak(text, volume, gong: Gong, translation: bool = True):
     """Spielt den angegebenen Text mit einem Gong davor ab"""
     with audio_lock:
+        main_root.after(0, live_overlay.show)
+        logger.info(f"Ansage gestartet: '{text}'")
         voice = "de-DE-KatjaNeural"
         async def generate_speech(text):
             if translation:
@@ -253,9 +295,10 @@ def speak(text, volume, gong: Gong, translation: bool = True):
                     asyncio.WindowsSelectorEventLoopPolicy()
                 )
             asyncio.run(generate_speech(text))
-        except Exception:
-            with open(LOG_FILE, "a", encoding="utf-8") as f:
-                f.write(f"Fehler bei TTS: \n{traceback.format_exc()}\n")
+        except Exception as e:
+            logger.error(f"Fehler bei der TTS-Generierung: {e}", exc_info=True)
+            icon.notify("Fehler bei der Ausgabe! Siehe Logs.", "❌ Ansage fehlgeschlagen")
+            main_root.after(0, live_overlay.hide)
             return
 
         try:
@@ -268,15 +311,22 @@ def speak(text, volume, gong: Gong, translation: bool = True):
                 play_audio(ANSAGE_FILE)
 
             pygame.mixer.quit()
-        except Exception:
-            with open(LOG_FILE, "a", encoding="utf-8") as f:
-                f.write(f"Fehler bei Audiowiedergabe: \n{traceback.format_exc()}\n")
+        except Exception as e:
+            logger.error(f"Fehler bei der Audiowiedergabe: {e}", exc_info=True)
+            icon.notify("Fehler bei der Ausgabe! Siehe Logs.", "❌ Ansage fehlgeschlagen")
+
+        else:
+            logger.info("Ansage erfolgreich abgespielt.")
+            short_text = text[:40] + "..." if len(text) > 40 else text
+            icon.notify(short_text, "✅ Ansage erfolgreich")
         finally:
-            # Temporäre Datei immer löschen
+            main_root.after(0, live_overlay.hide)
             if os.path.exists(ANSAGE_FILE):
                 try:
                     os.remove(ANSAGE_FILE)
-                except OSError:
+                except OSError as e:
+                    logger.error(f"Fehler bei der Löschung: {e}", exc_info=True)
+                    messagebox.showerror("Fehler bei der Löschung", f"Die Ansage Datei konnte nicht gelöscht werden! \n{e}")
                     pass
 
 def say_time(icon, item):
@@ -299,6 +349,7 @@ def leave_court(icon, item):
     ).start()
 
 def beenden(icon, item):
+    logger.info("Programm wird über das Tray-Menü beendet.")
     icon.stop()
     main_root.quit()
     sys.exit(0)
@@ -318,7 +369,7 @@ def custom_text(icon, item):
         )
         dialog_parent.destroy()
 
-        if user_input == "67" or " 6 7 " or "six seven" or "sixseven":
+        if user_input == "67" or user_input == " 6 7 " or user_input == "six seven" or user_input == "sixseven":
             messagebox.showwarning(title="Nope", message="Nice Try ;)")
             return
 
@@ -341,19 +392,19 @@ def ballplaying(icon, item):
 
 def automatic_time():
     """Startet die Schleife zum automatischen Ausführen aller halben Stunde"""
+    global letzte_ansage_minute
     while True:
-        global letzte_ansage_minute
-        while True:
-            jetzt = datetime.datetime.now()
+        jetzt = datetime.datetime.now()
 
-            if jetzt.minute in (0, 30) and jetzt.minute != letzte_ansage_minute:
-                ansage_ausfuehren(force=False)
-                letzte_ansage_minute = jetzt.minute
+        if jetzt.minute in (0, 30) and jetzt.minute != letzte_ansage_minute:
+            logger.info("Automatische Zeitansage ausgelöst.")
+            ansage_ausfuehren(force=False)
+            letzte_ansage_minute = jetzt.minute
 
-            if jetzt.minute not in (0, 30):
-                letzte_ansage_minute = -1
+        if jetzt.minute not in (0, 30):
+            letzte_ansage_minute = -1
 
-            time.sleep(5)
+        time.sleep(5)
 
 def ist_im_zeitfenster(jetzt: datetime.datetime) -> bool:
     """Prüft, ob der Zeitpunkt im erlaubten Zeitfenster liegt."""
@@ -397,6 +448,7 @@ def ansage_ausfuehren(force: bool = False):
 ctk.set_appearance_mode("light")
 main_root = ctk.CTk()
 main_root.withdraw()
+live_overlay = LiveOverlay(main_root)
 
 app_window = ctk.CTkToplevel(main_root)
 app = Application(app_window)
@@ -442,4 +494,7 @@ icon = pystray.Icon(
 threading.Thread(target=icon.run, daemon=True).start()
 threading.Thread(target=automatic_time, daemon=True).start()
 
+logger.info("SoccerWorld Tray App erfolgreich gestartet und bereit.")
+time.sleep(1)
+icon.notify("SoccerWorld Tray App wurde erfolgreich gestartet.")
 main_root.mainloop()
